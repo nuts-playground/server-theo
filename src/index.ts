@@ -9,6 +9,8 @@ import {
     GuessingData,
 } from "../types";
 import { checkGameOver } from "./tictactoe/tictactoe";
+import { sendRoom, sendRooms } from "./room";
+import { sendPlayers } from "./player";
 
 const httpServer = http.createServer();
 
@@ -29,18 +31,6 @@ io.on("connection", (socket) => {
     connectedId.push(socket.id);
     console.log(`${connectedId.length}명 접속 중`);
 
-    const sendPlayers = () => {
-        connectedId.forEach((id) => socket.to(id).emit("sendPlayers", players));
-        socket.emit("sendPlayers", players);
-        console.log(connectedId);
-        console.log(`${connectedId.length}명에게 ${players.length}명 보냄`);
-    };
-
-    const sendRooms = () => {
-        connectedId.forEach((id) => socket.to(id).emit("sendRooms", rooms));
-        socket.emit("sendRooms", rooms);
-    };
-
     socket.on("getPlayers", () => {
         socket.emit("sendPlayers", players);
     });
@@ -59,20 +49,10 @@ io.on("connection", (socket) => {
             location: "로비",
         };
         players.push(newPlayer);
-        sendPlayers();
+        sendPlayers(connectedId, players, socket);
         socket.emit("joinPlayground", newPlayer);
         socket.emit("sendRooms", rooms);
     });
-
-    const sendRoom = () => {
-        if (room.id) {
-            Object.keys(room.players).forEach((id) => {
-                socket.to(id).emit("sendRoom", room);
-            });
-        }
-
-        socket.emit("sendRoom", room);
-    };
 
     const exitRoom = () => {
         if (!room.id) return false;
@@ -85,14 +65,14 @@ io.on("connection", (socket) => {
             room = {
                 id: 0,
             } as Room;
-            sendRoom();
-            sendRooms();
+            sendRoom(room, socket);
+            sendRooms(rooms, connectedId, socket);
         } else {
-            sendRoom();
+            sendRoom(room, socket);
             room = {
                 id: 0,
             } as Room;
-            sendRoom();
+            sendRoom(room, socket);
         }
     };
 
@@ -101,34 +81,17 @@ io.on("connection", (socket) => {
     socket.on("ready", (isReady) => {
         if (!room.id) return false;
         room.players[socket.id].isReady = isReady;
-        sendRoom();
+        sendRoom(room, socket);
     });
 
     socket.on("createRoom", (roomData) => {
-        const players: Players = {};
-        players[roomData.player.id] = roomData.player;
-        const newRoom: Room = {
-            id: Date.now(),
-            name: roomData.name,
-            players: players,
-            isStart: false,
-            gameData: roomData.gameData,
-            currentTurn: roomData.currentTurn,
-            winner: "",
-            master: roomData.player.name,
-            game: {
-                name: roomData.game.name,
-                maxPlayers: roomData.game.maxPlayers,
-                minPlayers: roomData.game.minPlayers,
-            },
-        };
-        room = newRoom;
-        if (!rooms[roomData.game.name])
-            rooms[roomData.game.name] = [] as Room[];
-        rooms[roomData.game.name].push(room);
-        sendRoom();
-        sendRooms();
-        console.log("방 생성", newRoom);
+        room = { ...roomData, id: Date.now() };
+        rooms[room.game.name]
+            ? rooms[room.game.name].push(room)
+            : (rooms[room.game.name] = [room]);
+
+        sendRoom(room, socket);
+        sendRooms(rooms, connectedId, socket);
     });
 
     socket.on("joinRoom", (roomData) => {
@@ -140,9 +103,9 @@ io.on("connection", (socket) => {
             rooms[roomData.game][roomIndex].players[roomData.player.id] =
                 roomData.player;
             room = rooms[roomData.game][roomIndex];
-            sendRoom();
+            sendRoom(room, socket);
         }
-        sendRooms();
+        sendRooms(rooms, connectedId, socket);
     });
 
     socket.on("turnEnd", (data) => {
@@ -167,14 +130,14 @@ io.on("connection", (socket) => {
                 : data.room.players[Object.keys(data.room.players)[0]].name;
 
         room = data.room;
-        sendRoom();
+        sendRoom(room, socket);
     });
 
     socket.on("resetRoom", (gameData: IGameCell[][]) => {
         room.gameData = gameData;
         room.winner = "";
         room.currentTurn = room.master;
-        sendRoom();
+        sendRoom(room, socket);
     });
 
     socket.on("exitRoom", () => exitRoom());
@@ -182,14 +145,14 @@ io.on("connection", (socket) => {
     socket.on("sendRoom", (roomData) => {
         room = roomData;
         console.log(room, "sendRoom");
-        sendRoom();
+        sendRoom(room, socket);
     });
 
     socket.on("updateRoom", (roomData) => {
         room = roomData;
     });
 
-    socket.on("getRooms", () => sendRooms());
+    socket.on("getRooms", () => sendRooms(rooms, connectedId, socket));
 
     socket.on("disconnect", () => {
         console.log("유저 제거");
@@ -200,7 +163,7 @@ io.on("connection", (socket) => {
         const idIndex = connectedId.findIndex((id) => id === socket.id);
         connectedId.splice(idIndex);
         players.splice(playerIndex);
-        sendPlayers();
+        sendPlayers(connectedId, players, socket);
         exitRoom();
     });
 
@@ -210,7 +173,7 @@ io.on("connection", (socket) => {
         gameData.answer = answer;
         gameData.state = "question";
         room.gameData = gameData;
-        sendRoom();
+        sendRoom(room, socket);
     });
 
     socket.on("submitReply", (reply: boolean) => {
@@ -220,7 +183,7 @@ io.on("connection", (socket) => {
             newGameData.history.length > 19 ? "over" : "question";
         room.gameData = newGameData;
 
-        sendRoom();
+        sendRoom(room, socket);
     });
     socket.on("submitQuestion", (question) => {
         const newGameData = room.gameData as GuessingData;
@@ -228,7 +191,7 @@ io.on("connection", (socket) => {
         newGameData.state = "answer";
         room.gameData = newGameData;
 
-        sendRoom();
+        sendRoom(room, socket);
     });
 });
 
