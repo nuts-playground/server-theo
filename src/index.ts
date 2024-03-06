@@ -1,15 +1,8 @@
 import http from "http";
 import { Server } from "socket.io";
-import {
-    Player,
-    Players,
-    Room,
-    Rooms,
-    IGameCell,
-    GuessingData,
-} from "../types";
+import { Player, Room, Rooms, IGameCell, GuessingData } from "../types";
 import { checkGameOver } from "./tictactoe/tictactoe";
-import { sendRoom, sendRooms } from "./room";
+import { exitRoom, sendRoom, sendRooms } from "./room";
 import { sendPlayers } from "./player";
 
 const httpServer = http.createServer();
@@ -29,11 +22,9 @@ const connectedId: string[] = [];
 io.on("connection", (socket) => {
     let room: Room = {} as Room;
     connectedId.push(socket.id);
-    console.log(`${connectedId.length}명 접속 중`);
-
-    socket.on("getPlayers", () => {
-        socket.emit("sendPlayers", players);
-    });
+    socket.emit("sendRooms", rooms);
+    socket.emit("sendPlayers", players);
+    socket.on("exitRoom", () => exitRoom(room, rooms, connectedId, socket));
 
     socket.on("joinPlayground", (playerName) => {
         const hasPlayer = players.some((player) => player.name === playerName);
@@ -42,39 +33,15 @@ io.on("connection", (socket) => {
             return false;
         }
 
-        const newPlayer: Player = {
+        const player: Player = {
             id: socket.id,
             name: playerName,
-            isReady: false,
             location: "로비",
         };
-        players.push(newPlayer);
+        players.push(player);
         sendPlayers(connectedId, players, socket);
-        socket.emit("joinPlayground", newPlayer);
-        socket.emit("sendRooms", rooms);
+        socket.emit("joinPlayground", player);
     });
-
-    const exitRoom = () => {
-        if (!room.id) return false;
-        delete room.players[socket.id];
-        if (!Object.keys(room.players).length) {
-            const roomIndex = rooms[room.game.name].findIndex(
-                (item) => item.id === room.id
-            );
-            rooms[room.game.name].splice(roomIndex);
-            room = {
-                id: 0,
-            } as Room;
-            sendRoom(room, socket);
-            sendRooms(rooms, connectedId, socket);
-        } else {
-            sendRoom(room, socket);
-            room = {
-                id: 0,
-            } as Room;
-            sendRoom(room, socket);
-        }
-    };
 
     socket.on("getRoom", () => socket.emit("getRoom", rooms));
 
@@ -140,19 +107,11 @@ io.on("connection", (socket) => {
         sendRoom(room, socket);
     });
 
-    socket.on("exitRoom", () => exitRoom());
-
     socket.on("sendRoom", (roomData) => {
         room = roomData;
         console.log(room, "sendRoom");
         sendRoom(room, socket);
     });
-
-    socket.on("updateRoom", (roomData) => {
-        room = roomData;
-    });
-
-    socket.on("getRooms", () => sendRooms(rooms, connectedId, socket));
 
     socket.on("disconnect", () => {
         console.log("유저 제거");
@@ -164,7 +123,7 @@ io.on("connection", (socket) => {
         connectedId.splice(idIndex);
         players.splice(playerIndex);
         sendPlayers(connectedId, players, socket);
-        exitRoom();
+        exitRoom(room, rooms, connectedId, socket);
     });
 
     // 수수께기

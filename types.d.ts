@@ -7,7 +7,6 @@ export interface Player {
     [key: string]: string | boolean;
     id: string;
     name: string;
-    isReady: boolean;
     location: "로비" | "";
 }
 
