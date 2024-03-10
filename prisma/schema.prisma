@@ -8,12 +8,23 @@ datasource db {
 }
 
 model Player {
-  id   String @id @default(auto()) @map("_id") @db.ObjectId
-  name String @unique
+  id   String  @id @default(auto()) @map("_id") @db.ObjectId
+  socket String @unique
+  name String
 }
 
 model Room {
-  id   String    @id @default(auto()) @map("_id") @db.ObjectId
-  name String
-  gameName String
+  id      String    @id @default(auto()) @map("_id") @db.ObjectId
+  name    String
+  gameId  String
+  game    Game @relation(fields: [gameId], references: [id])
+  data    Json
+}
+
+model Game {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  name      String    @unique
+  minPeople Int
+  maxPeople Int
+  rooms     Room[]
 }

@@ -23,15 +23,15 @@ export interface Game {
 
 export interface Room {
     [key: string]: string | number | object | boolean;
-    id: number;
+    id: string;
     name: string;
     game: Game;
-    players: Players;
-    isStart: boolean;
-    gameData: GameData;
-    currentTurn: string;
-    winner: string;
-    master: string;
+    // players: Players;
+    // isStart: boolean;
+    // gameData: GameData;
+    // currentTurn: string;
+    // winner: string;
+    // master: string;
 }
 
 export interface TictactoeRoom extends Room {
