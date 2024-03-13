@@ -11,7 +11,7 @@ export const createPlayer = async (socket: string, name: string) => {
     const findPlayer = await prisma.player.findFirst({ where: { socket } });
     const player = findPlayer
         ? null
-        : await prisma.player.create({ data: { socket, name } });
+        : await prisma.player.create({ data: { socket, name, location: "" } });
 
     return player;
 };
@@ -23,4 +23,8 @@ export const deletePlayer = async (socket: string) => {
 export const getPlayers = async () => {
     const players = await prisma.player.findMany();
     return players;
+};
+
+export const updateLocation = async (socket: string, location: string) => {
+    await prisma.player.update({ where: { socket }, data: { location } });
 };

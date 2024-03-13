@@ -21,12 +21,23 @@ export const createRoom = async (name: string, gameName: string) => {
     return room;
 };
 
-export const getRooms = async () => {
-    const rooms = await prisma.room.findMany();
+export const getRooms = async (gameName: string) => {
+    const game = await prisma.game.findFirst({ where: { name: gameName } });
+    const rooms = await prisma.room.findMany({
+        where: { gameId: game?.id },
+    });
     return rooms;
 };
 
-export const sendRooms = async (sockets: any) => {
-    const rooms = await getRooms();
-    sockets.emit("sendRooms", rooms);
+export const sendRooms = async (gameName: string, socket: any) => {
+    const players = await prisma.player.findMany({
+        where: { location: gameName },
+        select: {
+            socket: true,
+        },
+    });
+    const rooms = await getRooms(gameName);
+    const sockets = players.map((player) => player.socket);
+    console.log(sockets, rooms);
+    socket.to(sockets).emit("sendRooms", rooms);
 };

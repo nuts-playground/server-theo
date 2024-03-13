@@ -11,6 +11,7 @@ model Player {
   id   String  @id @default(auto()) @map("_id") @db.ObjectId
   socket String @unique
   name String
+  location String
 }
 
 model Room {

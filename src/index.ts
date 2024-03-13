@@ -3,7 +3,13 @@ import { Server } from "socket.io";
 import { Player, Room, Rooms, IGameCell, GuessingData } from "../types";
 import { checkGameOver } from "./tictactoe/tictactoe";
 import { getRooms, sendRoom, sendRooms, createRoom } from "./room";
-import { sendPlayers, createPlayer, getPlayers, deletePlayer } from "./player";
+import {
+    sendPlayers,
+    createPlayer,
+    getPlayers,
+    deletePlayer,
+    updateLocation,
+} from "./player";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -14,7 +20,8 @@ async function main() {
     //         name: "Thoe",
     //     },
     // });
-    // await prisma.player.deleteMany({});
+    await prisma.player.deleteMany({});
+    await prisma.room.deleteMany({});
     // await prisma.game.create({
     //     data: {
     //         name: "틱택토",
@@ -42,7 +49,7 @@ io.on("connection", async (socket) => {
     let room: Room = {} as Room;
     let player: Player | null;
 
-    sendRooms(io.sockets);
+    // sendRooms(io.sockets);
     sendPlayers(io.sockets);
 
     connectedId.push(socket.id);
@@ -55,9 +62,18 @@ io.on("connection", async (socket) => {
         sendPlayers(io.sockets);
     });
 
+    socket.on("getRooms", async (gameName) => {
+        const rooms = await getRooms(gameName);
+        socket.emit("sendRooms", rooms);
+    });
+
     socket.on("createRoom", async (roomData: Room) => {
         await createRoom(roomData.name, roomData.game.name);
-        await sendRooms(io.sockets);
+        await sendRooms(roomData.game.name, socket);
+    });
+
+    socket.on("updateLocation", (location: string) => {
+        updateLocation(socket.id, location);
     });
 
     // socket.on("joinRoom", (roomData) => {
