@@ -7,11 +7,19 @@ export const sendPlayers = async (sockets: any) => {
     sockets.emit("sendPlayers", players);
 };
 
-export const createPlayer = async (socket: string, name: string) => {
+export const createPlayer = async ({
+    socket,
+    name,
+    location,
+}: {
+    socket: string;
+    name: string;
+    location: string;
+}) => {
     const findPlayer = await prisma.player.findFirst({ where: { socket } });
     const player = findPlayer
         ? null
-        : await prisma.player.create({ data: { socket, name, location: "" } });
+        : await prisma.player.create({ data: { socket, name, location } });
 
     return player;
 };

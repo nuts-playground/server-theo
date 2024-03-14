@@ -54,8 +54,8 @@ io.on("connection", async (socket) => {
 
     connectedId.push(socket.id);
 
-    socket.on("joinPlayground", async (playerName) => {
-        player = await createPlayer(socket.id, playerName);
+    socket.on("joinPlayground", async ({ name, location }) => {
+        player = await createPlayer({ socket: socket.id, name, location });
         const players = await getPlayers();
         socket.emit("joinPlayground", player);
 
@@ -72,8 +72,9 @@ io.on("connection", async (socket) => {
         await sendRooms(roomData.game.name, socket);
     });
 
-    socket.on("updateLocation", (location: string) => {
-        updateLocation(socket.id, location);
+    socket.on("updateLocation", async (location: string) => {
+        await updateLocation(socket.id, location);
+        sendPlayers(io.sockets);
     });
 
     // socket.on("joinRoom", (roomData) => {
