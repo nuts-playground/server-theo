@@ -2,11 +2,6 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const sendPlayers = async (sockets: any) => {
-    const players = await getPlayers();
-    sockets.emit("sendPlayers", players);
-};
-
 export const createPlayer = async ({
     socket,
     name,
@@ -25,12 +20,12 @@ export const createPlayer = async ({
 };
 
 export const deletePlayer = async (socket: string) => {
-    await prisma.player.delete({ where: { socket } });
+    const player = await prisma.player.findUnique({ where: { socket } });
+    if (player) await prisma.player.delete({ where: { socket } });
 };
 
 export const getPlayers = async () => {
-    const players = await prisma.player.findMany();
-    return players;
+    return await prisma.player.findMany();
 };
 
 export const updateLocation = async (socket: string, location: string) => {

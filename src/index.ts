@@ -1,16 +1,14 @@
 import http from "http";
 import { Server } from "socket.io";
-import { Player, Room, Rooms, IGameCell, GuessingData } from "../types";
 import { checkGameOver } from "./tictactoe/tictactoe";
-import { getRooms, sendRoom, sendRooms, createRoom } from "./room";
+import { getRooms, createRoom, joinRoom } from "./room";
 import {
-    sendPlayers,
     createPlayer,
     getPlayers,
     deletePlayer,
     updateLocation,
 } from "./player";
-import { PrismaClient } from "@prisma/client";
+import { Player, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -43,23 +41,34 @@ const io = new Server(httpServer, {
     },
 });
 
-const connectedId: string[] = [];
+const socketEvent = {
+    SEND_ROOM: "sendRoom",
+    SEND_ROOMS: "sendRooms",
+    SEND_PLAYERS: "sendPlayers",
+};
+
+const sendPlayers = async () => {
+    const players = await getPlayers();
+    io.sockets.emit(socketEvent.SEND_PLAYERS, players);
+};
 
 io.on("connection", async (socket) => {
-    let room: Room = {} as Room;
-    let player: Player | null;
+    const players = await getPlayers();
 
-    // sendRooms(io.sockets);
-    sendPlayers(io.sockets);
-
-    connectedId.push(socket.id);
-
+    sendPlayers();
     socket.on("joinPlayground", async ({ name, location }) => {
-        player = await createPlayer({ socket: socket.id, name, location });
-        const players = await getPlayers();
+        const player = await createPlayer({
+            socket: socket.id,
+            name,
+            location,
+        });
         socket.emit("joinPlayground", player);
+        sendPlayers();
+    });
 
-        sendPlayers(io.sockets);
+    socket.on("updateLocation", async (location: string) => {
+        await updateLocation(socket.id, location);
+        await sendPlayers();
     });
 
     socket.on("getRooms", async (gameName) => {
@@ -67,101 +76,106 @@ io.on("connection", async (socket) => {
         socket.emit("sendRooms", rooms);
     });
 
-    socket.on("createRoom", async (roomData: Room) => {
-        await createRoom(roomData.name, roomData.game.name);
-        await sendRooms(roomData.game.name, socket);
+    socket.on("createRoom", async ({ name, game }) => {
+        const room = await createRoom({
+            socket: socket.id,
+            name,
+            gameName: game.name,
+        });
+        const rooms = await getRooms(game.name);
+        const players = await prisma.player.findMany({
+            where: { location: game.name },
+            select: { socket: true },
+        });
+        const sockets = players.map((player) => player.socket);
+        console.log(rooms);
+        console.log(sockets);
+        socket.to(sockets).emit(socketEvent.SEND_ROOMS, rooms);
+        socket.emit(socketEvent.SEND_ROOM, room);
     });
 
-    socket.on("updateLocation", async (location: string) => {
-        await updateLocation(socket.id, location);
-        sendPlayers(io.sockets);
+    socket.on("joinRoom", async ({ id }) => {
+        const room = await joinRoom({ id, socket: socket.id });
+        if (!room) return false;
+        const sockets = room.players.map((player) => {
+            if (typeof player === "object" && player !== null) {
+                return (player as Player).socket;
+            }
+        }) as string[];
+
+        socket.to(sockets).emit(socketEvent.SEND_ROOM, room);
+        socket.emit(socketEvent.SEND_ROOM, room);
     });
 
-    // socket.on("joinRoom", (roomData) => {
-    //     const roomIndex = rooms[roomData.game].findIndex(
-    //         (room) => room.id === roomData.id
+    // socket.on("turnEnd", (data) => {
+    //     if (
+    //         data.room.gameData[data.y][data.x].value ||
+    //         data.room.currentTurn !== data.player.name
+    //     )
+    //         return;
+
+    //     data.room.gameData[data.y][data.x].value = true;
+    //     data.room.gameData[data.y][data.x].player =
+    //         data.room.master === data.player.name ? "O" : "X";
+    //     data.room.winner = checkGameOver(
+    //         data.room.gameData[data.y][data.x].player,
+    //         data.player,
+    //         data.room.gameData
     //     );
+    //     data.room.currentTurn =
+    //         data.room.currentTurn ===
+    //         data.room.players[Object.keys(data.room.players)[0]].name
+    //             ? data.room.players[Object.keys(data.room.players)[1]].name
+    //             : data.room.players[Object.keys(data.room.players)[0]].name;
 
-    //     if (Object.keys(rooms[roomData.game][roomIndex].players).length < 2) {
-    //         rooms[roomData.game][roomIndex].players[roomData.player.id] =
-    //             roomData.player;
-    //         room = rooms[roomData.game][roomIndex];
-    //         sendRoom(room, socket);
-    //     }
-    //     sendRooms(rooms, connectedId, socket);
+    //     room = data.room;
+    //     sendRoom(room, socket);
     // });
 
-    socket.on("turnEnd", (data) => {
-        if (
-            data.room.gameData[data.y][data.x].value ||
-            data.room.currentTurn !== data.player.name
-        )
-            return;
+    // socket.on("resetRoom", (gameData: IGameCell[][]) => {
+    //     room.gameData = gameData;
+    //     room.winner = "";
+    //     room.currentTurn = room.master;
+    //     sendRoom(room, socket);
+    // });
 
-        data.room.gameData[data.y][data.x].value = true;
-        data.room.gameData[data.y][data.x].player =
-            data.room.master === data.player.name ? "O" : "X";
-        data.room.winner = checkGameOver(
-            data.room.gameData[data.y][data.x].player,
-            data.player,
-            data.room.gameData
-        );
-        data.room.currentTurn =
-            data.room.currentTurn ===
-            data.room.players[Object.keys(data.room.players)[0]].name
-                ? data.room.players[Object.keys(data.room.players)[1]].name
-                : data.room.players[Object.keys(data.room.players)[0]].name;
+    // socket.on("sendRoom", (roomData) => {
+    //     room = roomData;
+    //     console.log(room, "sendRoom");
+    //     sendRoom(room, socket);
+    // });
 
-        room = data.room;
-        sendRoom(room, socket);
-    });
-
-    socket.on("resetRoom", (gameData: IGameCell[][]) => {
-        room.gameData = gameData;
-        room.winner = "";
-        room.currentTurn = room.master;
-        sendRoom(room, socket);
-    });
-
-    socket.on("sendRoom", (roomData) => {
-        room = roomData;
-        console.log(room, "sendRoom");
-        sendRoom(room, socket);
-    });
-
-    socket.on("disconnect", () => {
-        if (player) deletePlayer(socket.id);
-
-        // sendPlayers(io.sockets);
-        // exitRoom(room, rooms, connectedId, socket);
+    socket.on("disconnect", async () => {
+        await deletePlayer(socket.id);
+        sendPlayers();
     });
 
     // 수수께기
-    socket.on("registerAnswer", (answer) => {
-        const gameData = room.gameData as GuessingData;
-        gameData.answer = answer;
-        gameData.state = "question";
-        room.gameData = gameData;
-        sendRoom(room, socket);
-    });
+    // socket.on("registerAnswer", (answer) => {
+    //     const gameData = room.gameData as GuessingData;
+    //     gameData.answer = answer;
+    //     gameData.state = "question";
+    //     room.gameData = gameData;
+    //     sendRoom(room, socket);
+    // });
 
-    socket.on("submitReply", (reply: boolean) => {
-        const newGameData = room.gameData as GuessingData;
-        newGameData.history[newGameData.history.length - 1].answer = reply;
-        newGameData.state =
-            newGameData.history.length > 19 ? "over" : "question";
-        room.gameData = newGameData;
+    // socket.on("submitReply", (reply: boolean) => {
+    //     const newGameData = room.gameData as GuessingData;
+    //     newGameData.history[newGameData.history.length - 1].answer = reply;
+    //     newGameData.state =
+    //         newGameData.history.length > 19 ? "over" : "question";
+    //     room.gameData = newGameData;
 
-        sendRoom(room, socket);
-    });
-    socket.on("submitQuestion", (question) => {
-        const newGameData = room.gameData as GuessingData;
-        newGameData.history.push({ question: question, answer: null });
-        newGameData.state = "answer";
-        room.gameData = newGameData;
+    //     sendRoom(room, socket);
+    // });
+    // socket.on("submitQuestion", (question) => {
+    //     const newGameData = room.gameData as GuessingData;
+    //     newGameData.history.push({ question: question, answer: null });
+    //     newGameData.state = "answer";
+    //     room.gameData = newGameData;
 
-        sendRoom(room, socket);
-    });
+    //     sendRoom(room, socket);
+    // });
 });
 
 const PORT = process.env.PORT || 3001;
