@@ -1,4 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { Socket } from "socket.io";
+import { socketEvent } from "./index";
+import { Player, PrismaClient, Room } from "@prisma/client";
+import { getGameName } from "./game";
 const prisma = new PrismaClient();
 
 export const createRoom = async ({
@@ -37,7 +40,7 @@ export const joinRoom = async ({
     socket,
 }: {
     id: string;
-    socket: string;
+    socket: Socket;
 }) => {
     const room = await prisma.room.findUnique({
         where: { id },
@@ -50,10 +53,10 @@ export const joinRoom = async ({
     if (game.maxPeople === room.players.length) return false;
 
     const player = await prisma.player.findUnique({
-        where: { socket },
+        where: { socket: socket.id },
     });
 
-    return await prisma.room.update({
+    const joinedRoom = await prisma.room.update({
         where: { id },
         data: {
             players: {
@@ -61,6 +64,23 @@ export const joinRoom = async ({
             },
         },
     });
+
+    sendUpdatedRoom(joinedRoom, socket);
+};
+
+export const exitRoom = async (id: string, socket: string) => {
+    const room = await prisma.room.findUnique({ where: { id } });
+    if (room) {
+        const players = (room.players as Player[]).filter(
+            (player: Player) => player.socket !== socket
+        );
+        console.log(players);
+
+        return await prisma.room.update({
+            where: { id },
+            data: { players: { set: players } },
+        });
+    }
 };
 
 export const getRooms = async (gameName: string) => {
@@ -69,4 +89,23 @@ export const getRooms = async (gameName: string) => {
         where: { gameId: game?.id },
     });
     return rooms;
+};
+
+export const sendRooms = async (game: string, socket: Socket) => {
+    const players = await prisma.player.findMany({ where: { location: game } });
+    const sockets = players.map((player) => player.socket);
+    const rooms = await getRooms(game);
+    socket.to(sockets).emit(socketEvent.SEND_ROOMS, rooms);
+    socket.emit(socketEvent.SEND_ROOMS, rooms);
+};
+
+export const sendUpdatedRoom = async (room: Room, socket: Socket) => {
+    const gameName = await getGameName(room.gameId);
+    if (gameName) sendRooms(gameName, socket);
+
+    const sockets = (room.players as Player[]).map(
+        (player: Player) => player.socket
+    );
+    socket.to(sockets).emit(socketEvent.SEND_ROOM, room);
+    socket.emit(socketEvent.SEND_ROOM, room);
 };

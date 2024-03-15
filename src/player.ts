@@ -1,4 +1,6 @@
 import { PrismaClient } from "@prisma/client";
+import { Server, Socket } from "socket.io";
+import { socketEvent } from ".";
 
 const prisma = new PrismaClient();
 
@@ -19,15 +21,31 @@ export const createPlayer = async ({
     return player;
 };
 
-export const deletePlayer = async (socket: string) => {
-    const player = await prisma.player.findUnique({ where: { socket } });
-    if (player) await prisma.player.delete({ where: { socket } });
+export const deletePlayer = async (io: Server, socket: Socket) => {
+    const player = await prisma.player.findUnique({
+        where: { socket: socket.id },
+    });
+    if (player) await prisma.player.delete({ where: { socket: socket.id } });
+    sendPlayers(io);
 };
 
 export const getPlayers = async () => {
     return await prisma.player.findMany();
 };
 
-export const updateLocation = async (socket: string, location: string) => {
-    await prisma.player.update({ where: { socket }, data: { location } });
+export const sendPlayers = async (io: Server) => {
+    io.sockets.emit(socketEvent.SEND_PLAYERS, await getPlayers());
+};
+
+export const updateLocation = async (
+    io: Server,
+    socket: Socket,
+    location: string
+) => {
+    await prisma.player.update({
+        where: { socket: socket.id },
+        data: { location },
+    });
+
+    sendPlayers(io);
 };

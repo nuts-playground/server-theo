@@ -1,12 +1,19 @@
 import http from "http";
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 import { checkGameOver } from "./tictactoe/tictactoe";
-import { getRooms, createRoom, joinRoom } from "./room";
+import {
+    getRooms,
+    createRoom,
+    joinRoom,
+    exitRoom,
+    sendUpdatedRoom,
+} from "./room";
 import {
     createPlayer,
     getPlayers,
     deletePlayer,
     updateLocation,
+    sendPlayers,
 } from "./player";
 import { Player, PrismaClient } from "@prisma/client";
 
@@ -41,21 +48,18 @@ const io = new Server(httpServer, {
     },
 });
 
-const socketEvent = {
+export const socketEvent = {
     SEND_ROOM: "sendRoom",
     SEND_ROOMS: "sendRooms",
+    JOIN_ROOM: "joinRoom",
+    EXIT_ROOM: "exitRoom",
     SEND_PLAYERS: "sendPlayers",
-};
-
-const sendPlayers = async () => {
-    const players = await getPlayers();
-    io.sockets.emit(socketEvent.SEND_PLAYERS, players);
 };
 
 io.on("connection", async (socket) => {
     const players = await getPlayers();
 
-    sendPlayers();
+    sendPlayers(io);
     socket.on("joinPlayground", async ({ name, location }) => {
         const player = await createPlayer({
             socket: socket.id,
@@ -63,17 +67,15 @@ io.on("connection", async (socket) => {
             location,
         });
         socket.emit("joinPlayground", player);
-        sendPlayers();
+        sendPlayers(io);
     });
 
-    socket.on("updateLocation", async (location: string) => {
-        await updateLocation(socket.id, location);
-        await sendPlayers();
+    socket.on("updateLocation", (location: string) => {
+        updateLocation(io, socket, location);
     });
 
-    socket.on("getRooms", async (gameName) => {
-        const rooms = await getRooms(gameName);
-        socket.emit("sendRooms", rooms);
+    socket.on("getRooms", async (name) => {
+        socket.emit("sendRooms", await getRooms(name));
     });
 
     socket.on("createRoom", async ({ name, game }) => {
@@ -88,23 +90,25 @@ io.on("connection", async (socket) => {
             select: { socket: true },
         });
         const sockets = players.map((player) => player.socket);
-        console.log(rooms);
-        console.log(sockets);
         socket.to(sockets).emit(socketEvent.SEND_ROOMS, rooms);
         socket.emit(socketEvent.SEND_ROOM, room);
     });
 
-    socket.on("joinRoom", async ({ id }) => {
-        const room = await joinRoom({ id, socket: socket.id });
-        if (!room) return false;
-        const sockets = room.players.map((player) => {
-            if (typeof player === "object" && player !== null) {
-                return (player as Player).socket;
-            }
-        }) as string[];
+    socket.on("joinRoom", ({ id }) => {
+        joinRoom({ id, socket });
+    });
 
-        socket.to(sockets).emit(socketEvent.SEND_ROOM, room);
-        socket.emit(socketEvent.SEND_ROOM, room);
+    socket.on(socketEvent.EXIT_ROOM, async (id) => {
+        const room = await exitRoom(id, socket.id);
+        if (room) {
+            const sockets = room.players.map((player) => {
+                if (typeof player === "object" && player !== null) {
+                    return (player as Player).socket;
+                }
+            }) as string[];
+            socket.emit(socketEvent.SEND_ROOM, {});
+            socket.to(sockets).emit(socketEvent.SEND_ROOM, room);
+        }
     });
 
     // socket.on("turnEnd", (data) => {
@@ -146,8 +150,7 @@ io.on("connection", async (socket) => {
     // });
 
     socket.on("disconnect", async () => {
-        await deletePlayer(socket.id);
-        sendPlayers();
+        deletePlayer(io, socket);
     });
 
     // 수수께기
