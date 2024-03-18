@@ -2,6 +2,7 @@ import { Socket } from "socket.io";
 import { socketEvent } from "./index";
 import { Player, PrismaClient, Room } from "@prisma/client";
 import { getGameName } from "./game";
+import _ from "underscore";
 const prisma = new PrismaClient();
 
 export const createRoom = async ({
@@ -108,4 +109,21 @@ export const sendUpdatedRoom = async (room: Room, socket: Socket) => {
     );
     socket.to(sockets).emit(socketEvent.SEND_ROOM, room);
     socket.emit(socketEvent.SEND_ROOM, room);
+};
+
+export const toggleReady = async ({
+    id,
+    socket,
+}: {
+    id: string;
+    socket: Socket;
+}) => {
+    const room = await prisma.room.findUnique({
+        where: { id },
+        select: { players: true },
+    });
+
+    const player = (room?.players as Player[]).filter((player) => {
+        return player.socket === socket.id;
+    });
 };

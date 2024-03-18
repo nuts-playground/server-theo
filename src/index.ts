@@ -7,6 +7,7 @@ import {
     joinRoom,
     exitRoom,
     sendUpdatedRoom,
+    toggleReady,
 } from "./room";
 import {
     createPlayer,
@@ -54,6 +55,7 @@ export const socketEvent = {
     JOIN_ROOM: "joinRoom",
     EXIT_ROOM: "exitRoom",
     SEND_PLAYERS: "sendPlayers",
+    TOGGLE_READY: "toggleReady",
 };
 
 io.on("connection", async (socket) => {
@@ -94,8 +96,12 @@ io.on("connection", async (socket) => {
         socket.emit(socketEvent.SEND_ROOM, room);
     });
 
-    socket.on("joinRoom", ({ id }) => {
+    socket.on(socketEvent.JOIN_ROOM, ({ id }) => {
         joinRoom({ id, socket });
+    });
+
+    socket.on(socketEvent.TOGGLE_READY, (id) => {
+        toggleReady({ id, socket });
     });
 
     socket.on(socketEvent.EXIT_ROOM, async (id) => {

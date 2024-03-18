@@ -16,10 +16,12 @@
     "@prisma/client": "^5.10.2",
     "http": "^0.0.1-security",
     "mongodb": "^6.4.0",
-    "socket.io": "^4.7.4"
+    "socket.io": "^4.7.4",
+    "underscore": "^1.13.6"
   },
   "devDependencies": {
     "@types/node": "^20.11.25",
+    "@types/underscore": "^1.11.15",
     "nodemon": "^3.1.0",
     "prisma": "^5.10.2",
     "ts-node": "^10.9.2",
