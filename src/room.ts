@@ -3,6 +3,7 @@ import { socketEvent } from "./index";
 import { Player, PrismaClient, Room } from "@prisma/client";
 import { getGameName } from "./game";
 import _ from "underscore";
+import { RoomPlayer } from "../types";
 const prisma = new PrismaClient();
 
 export const createRoom = async ({
@@ -122,8 +123,15 @@ export const toggleReady = async ({
         where: { id },
         select: { players: true },
     });
+    const players = room?.players as unknown as RoomPlayer[];
+    const index = _.findIndex(players, (player) => player.socket == socket.id);
 
-    const player = (room?.players as Player[]).filter((player) => {
-        return player.socket === socket.id;
+    players[index].ready = !players[index].ready;
+
+    const updatedRoom = await prisma.room.update({
+        where: { id },
+        data: { players: { set: JSON.parse(JSON.stringify(players)) } },
     });
+
+    sendUpdatedRoom(updatedRoom, socket);
 };
