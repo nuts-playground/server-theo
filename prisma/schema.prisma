@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Gender {
+  Playing
+  Waiting
+}
+
 model Player {
   id   String  @id @default(auto()) @map("_id") @db.ObjectId
   socket String @unique
@@ -19,6 +24,7 @@ model Room {
   name    String
   gameId  String
   game    Game @relation(fields: [gameId], references: [id])
+  state   Gender
   data    Json
   players Json[]
 }

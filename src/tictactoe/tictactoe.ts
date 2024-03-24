@@ -7,6 +7,5 @@ export const createInitTictactoe = () => {
         }
         initData.push(row);
     }
-
     return initData;
 };

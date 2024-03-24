@@ -31,6 +31,7 @@ export const createRoom = async ({
         data: {
             name,
             gameId,
+            state: "Waiting",
             players: [{ ...player, ready: false, isMaster: true }],
             data: createInitTictactoe(),
         },
