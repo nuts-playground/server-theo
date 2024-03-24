@@ -4,6 +4,7 @@ import { Player, PrismaClient, Room } from "@prisma/client";
 import { getGameName } from "./game";
 import _ from "underscore";
 import { RoomPlayer } from "../types";
+import { createInitTictactoe } from "./tictactoe/tictactoe";
 const prisma = new PrismaClient();
 
 export const createRoom = async ({
@@ -31,7 +32,7 @@ export const createRoom = async ({
             name,
             gameId,
             players: [{ ...player, ready: false, isMaster: true }],
-            data: {},
+            data: createInitTictactoe(),
         },
     });
     return room;

@@ -1,6 +1,5 @@
 import http from "http";
 import { Server, Socket } from "socket.io";
-import { checkGameOver } from "./tictactoe/tictactoe";
 import {
     getRooms,
     createRoom,
