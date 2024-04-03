@@ -36,3 +36,10 @@ model Game {
   maxPeople Int
   rooms     Room[]
 }
+
+model Chat {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  text      String
+  player    String
+  date      DateTime @default(now())
+}

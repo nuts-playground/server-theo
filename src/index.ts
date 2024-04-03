@@ -7,6 +7,7 @@ import {
     exitRoom,
     sendUpdatedRoom,
     toggleReady,
+    startGame,
 } from "./room";
 import {
     createPlayer,
@@ -16,6 +17,7 @@ import {
     sendPlayers,
 } from "./player";
 import { Player, PrismaClient } from "@prisma/client";
+import { createChat } from "./chat";
 
 const prisma = new PrismaClient();
 
@@ -55,6 +57,8 @@ export const socketEvent = {
     EXIT_ROOM: "exitRoom",
     SEND_PLAYERS: "sendPlayers",
     TOGGLE_READY: "toggleReady",
+    START_GAME: "startGame",
+    CHAT: "chat",
 };
 
 io.on("connection", async (socket) => {
@@ -67,6 +71,7 @@ io.on("connection", async (socket) => {
             name,
             location,
         });
+        console.log("ssssss");
         socket.emit("joinPlayground", player);
         sendPlayers(io);
     });
@@ -116,6 +121,10 @@ io.on("connection", async (socket) => {
         }
     });
 
+    socket.on(socketEvent.START_GAME, async (id) => {
+        startGame(id);
+    });
+
     // socket.on("turnEnd", (data) => {
     //     if (
     //         data.room.gameData[data.y][data.x].value ||
@@ -157,6 +166,15 @@ io.on("connection", async (socket) => {
     socket.on("disconnect", async () => {
         deletePlayer(io, socket);
     });
+
+    // 채팅
+    socket.on(
+        socketEvent.CHAT,
+        ({ text, name }: { text: string; name: string }) => {
+            createChat({ text, name, io });
+            console.log("채팅");
+        }
+    );
 
     // 수수께기
     // socket.on("registerAnswer", (answer) => {

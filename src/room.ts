@@ -33,7 +33,7 @@ export const createRoom = async ({
             gameId,
             state: "Waiting",
             players: [{ ...player, ready: false, isMaster: true }],
-            data: createInitTictactoe(),
+            data: {},
         },
     });
     return room;
@@ -136,4 +136,10 @@ export const toggleReady = async ({
     });
 
     sendUpdatedRoom(updatedRoom, socket);
+};
+
+export const startGame = async (id: string) => {
+    const room = await prisma.room.findUnique({ where: { id } });
+
+    createInitTictactoe();
 };
