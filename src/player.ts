@@ -4,6 +4,19 @@ import { socketEvent } from ".";
 
 const prisma = new PrismaClient();
 
+export const registerUser = async (name: string) => {
+    try {
+        return await prisma.user.create({ data: { name } });
+    } catch (error) {
+        console.error("Error registerUser:", error);
+        throw error;
+    }
+};
+
+export const deleteUser = async (userId: string) => {
+    await prisma.user.delete({ where: { id: userId } });
+};
+
 export const createPlayer = async ({
     socket,
     name,
@@ -19,6 +32,20 @@ export const createPlayer = async ({
         : await prisma.player.create({ data: { socket, name, location: "" } });
 
     return player;
+};
+
+export const findPlayer = async (socketId: string) => {
+    try {
+        const player = await prisma.player.findUnique({
+            where: {
+                socket: socketId,
+            },
+        });
+        return player;
+    } catch (error) {
+        console.error("Error findPlayer():", error);
+        throw error;
+    }
 };
 
 export const deletePlayer = async (io: Server, socket: Socket) => {

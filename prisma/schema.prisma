@@ -7,16 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Gender {
-  Playing
-  Waiting
+enum RoomState {
+  playing
+  waiting
+  canStart
+  full
 }
 
 model Player {
-  id   String  @id @default(auto()) @map("_id") @db.ObjectId
-  socket String @unique
-  name String
-  location String
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  socket    String @unique
+  name      String
+  location  String
+
+  isReady   Boolean?
+  isMaster  Boolean?
+
+  room      Room?    @relation(fields: [roomId], references: [id])
+  roomId    String?
+
 }
 
 model Room {
@@ -24,9 +33,9 @@ model Room {
   name    String
   gameId  String
   game    Game @relation(fields: [gameId], references: [id])
-  state   Gender
+  state   RoomState
   data    Json
-  players Json[]
+  players Player[]
 }
 
 model Game {
@@ -42,4 +51,34 @@ model Chat {
   text      String
   player    String
   date      DateTime @default(now())
+}
+
+
+
+
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name  String   @unique
+
+  gameRoom    GameRoom?   @relation(fields: [gameRoomId], references: [id])
+  gameRoomId  String?        
+}
+
+model GameType {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
+  minUsers    Int      
+  maxUsers    Int      
+
+  gameRooms   GameRoom[]  @relation("GameTypeRooms")
+}
+
+model GameRoom {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  users       User[]   
+
+  gameTypeId  String       
+  gameType    GameType   @relation("GameTypeRooms", fields: [gameTypeId], references: [id])
 }

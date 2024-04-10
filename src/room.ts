@@ -4,8 +4,22 @@ import { Player, PrismaClient, Room } from "@prisma/client";
 import { getGameName } from "./game";
 import _ from "underscore";
 import { RoomPlayer } from "../types";
-import { createInitTictactoe } from "./tictactoe/tictactoe";
 const prisma = new PrismaClient();
+
+// 새로운 게임 방 생성
+export const createGameRoom = async (roomname: string, gameTypeId: string) => {
+    try {
+        return await prisma.gameRoom.create({
+            data: {
+                name: roomname,
+                gameType: { connect: { id: gameTypeId } },
+            },
+        });
+    } catch (error) {
+        console.error("Error createGameRoom:", error);
+        throw error;
+    }
+};
 
 export const createRoom = async ({
     socket,
@@ -31,7 +45,7 @@ export const createRoom = async ({
         data: {
             name,
             gameId,
-            state: "Waiting",
+            state: "waiting",
             players: [{ ...player, ready: false, isMaster: true }],
             data: {},
         },
@@ -60,9 +74,19 @@ export const joinRoom = async ({
         where: { socket: socket.id },
     });
 
+    let state: Gender;
+    if (room.players.length === game.maxPeople - 1) {
+        state = "full";
+    } else if (room.players.length >= game.minPeople - 1) {
+        state = "canStart";
+    } else {
+        state = "waiting";
+    }
+
     const joinedRoom = await prisma.room.update({
         where: { id },
         data: {
+            state,
             players: {
                 push: { ...player, ready: false, isMaster: false },
             },
@@ -75,15 +99,19 @@ export const joinRoom = async ({
 export const exitRoom = async (id: string, socket: string) => {
     const room = await prisma.room.findUnique({ where: { id } });
     if (room) {
-        const players = (room.players as Player[]).filter(
-            (player: Player) => player.socket !== socket
+        const players = room.players.filter(
+            (player) => player.socket !== socket
         );
-        console.log(players);
 
-        return await prisma.room.update({
-            where: { id },
-            data: { players: { set: players } },
-        });
+        if (players.length === 0) {
+            await prisma.room.delete({ where: { id } });
+        } else {
+            const updatedRoom = await prisma.room.update({
+                where: { id },
+                data: { players: { set: players } },
+            });
+            // sendUpdatedRoom(updatedRoom, socket);
+        }
     }
 };
 
@@ -138,8 +166,34 @@ export const toggleReady = async ({
     sendUpdatedRoom(updatedRoom, socket);
 };
 
-export const startGame = async (id: string) => {
-    const room = await prisma.room.findUnique({ where: { id } });
+export const startGame = async ({
+    data,
+    id,
+    socket,
+}: {
+    data: any;
+    id: string;
+    socket: Socket;
+}) => {
+    const updatedRoom = await prisma.room.update({
+        where: { id },
+        data: { state: "playing", data },
+    });
+    sendUpdatedRoom(updatedRoom, socket);
+};
 
-    createInitTictactoe();
+export const updateGameData = async ({
+    data,
+    id,
+    socket,
+}: {
+    data: any;
+    id: string;
+    socket: Socket;
+}) => {
+    const updatedRoom = await prisma.room.update({
+        where: { id },
+        data: { data },
+    });
+    sendUpdatedRoom(updatedRoom, socket);
 };
